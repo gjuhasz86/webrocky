@@ -1,0 +1,9 @@
+# Ignore everything
+/*
+
+# But not these
+!/.gitignore
+!/LICENSE
+!/README.md
+!/proj
+!/build.sc
