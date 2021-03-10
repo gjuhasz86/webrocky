@@ -14,6 +14,8 @@ import javax.crypto.spec.SecretKeySpec
 import scalaj.http.{Base64 => _}
 import scalaj.http._
 
+// implementation based on
+// https://github.com/PiotrMachowski/Home-Assistant-custom-components-Xiaomi-Cloud-Map-Extractor/blob/bdaec4aa14c2f30b69d2c966bf1fbeab6e5aaff7/custom_components/xiaomi_cloud_map_extractor/xiaomi_cloud_connector.py
 class XiaomiClient(agent: String, country: String, userId: String, serviceToken: String, ssecurity: String) {
 
   def getMapData(url: String): Array[Byte] = {
