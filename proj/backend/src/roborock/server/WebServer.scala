@@ -3,7 +3,8 @@ package roborock.server
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import better.files._
-import roborock.core.MapProvider
+import com.typesafe.config.ConfigFactory
+import roborock.core.XiaomiClientProvider
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContextExecutor
@@ -19,7 +20,11 @@ object WebServer {
 
     val staticPath = args.head
 
-    val mp = new MapProvider
+    val config = ConfigFactory.parseFile(File("secrets.hocon").toJava)
+    val user = config.getString("miio.user")
+    val passHash = config.getString("miio.user")
+    val country = config.getString("miio.country")
+    val mp = new XiaomiClientProvider(user, passHash, country)
 
     val bindingFuture = Http().newServerAt("0.0.0.0", 4201).bindFlow(new Routes(staticPath, mp).route)
     println(s"Server online at http://localhost:4201/\nType 'exit' without quotes and press RETURN to stop...")

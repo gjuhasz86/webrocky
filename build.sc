@@ -23,7 +23,8 @@ object proj extends Module {
       ivy"io.circe::circe-optics:0.13.0",
       ivy"com.github.pathikrit::better-files:3.9.1",
       ivy"de.heikoseeberger::akka-http-circe:1.35.0",
-      ivy"com.typesafe:config:1.4.1"
+      ivy"com.typesafe:config:1.4.1",
+      ivy"org.scalaj::scalaj-http:2.4.2"
     )
   }
 
