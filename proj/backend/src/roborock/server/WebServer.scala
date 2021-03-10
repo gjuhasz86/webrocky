@@ -21,9 +21,9 @@ object WebServer {
     val staticPath = args.head
 
     val config = ConfigFactory.parseFile(File("secrets.hocon").toJava)
-    val user = config.getString("miio.user")
-    val passHash = config.getString("miio.user")
-    val country = config.getString("miio.country")
+    val user = config.getString("xiaomi.user")
+    val passHash = config.getString("xiaomi.user")
+    val country = config.getString("xiaomi.country")
     val mp = new XiaomiClientProvider(user, passHash, country)
 
     val bindingFuture = Http().newServerAt("0.0.0.0", 4201).bindFlow(new Routes(staticPath, mp).route)
