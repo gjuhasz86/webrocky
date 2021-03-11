@@ -6,10 +6,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
-import roborock.core.XiaomiClientProvider
+import roborock.core.MiioClient
+import roborock.core.XiaomiClient
+
+import io.circe.syntax._
 
 case class Foo(bar: String)
-class Routes(staticPath: String, mapProvider: XiaomiClientProvider) extends LazyLogging {
+class Routes(staticPath: String, miio: MiioClient, xc: XiaomiClient) extends LazyLogging {
   import io.circe.generic.auto._
   import Syntax._
 
@@ -17,9 +20,12 @@ class Routes(staticPath: String, mapProvider: XiaomiClientProvider) extends Lazy
 
   lazy val apiRoute: Route = {
     p("api") {
-      _.get("debug") {
+      _.get("map") {
         println(LocalDateTime.now)
-        complete("ok")
+        val mapName = miio.reqMapName()
+        val url = xc.mapUrl(mapName)
+        val res = xc.getMapData(url).toVector
+        complete(res.asJson)
       }
     }
   }

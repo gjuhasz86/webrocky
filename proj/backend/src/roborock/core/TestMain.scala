@@ -10,9 +10,18 @@ object TestMain {
     val user = config.getString("xiaomi.user")
     val passHash = config.getString("xiaomi.passHash")
     val country = config.getString("xiaomi.country")
+    val ip = config.getString("miio.ip")
+    val token = config.getString("miio.token")
+
+    val miio = new MiioClient(DefaultTimestampProvider, ip, token)
+    val mapName = miio.reqMapName()
+    println(mapName)
+
     val xcp = new XiaomiClientProvider(user, passHash, country)
-    val client = xcp.buildClient()
-    val url = client.mapUrl("???")
+    val client: XiaomiClient = xcp.buildClient()
+
+
+    val url = client.mapUrl(mapName)
     client.getMapData(url)
   }
 }

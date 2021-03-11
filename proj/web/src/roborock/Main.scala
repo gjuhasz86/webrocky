@@ -27,8 +27,8 @@ object Main {
     renderCtx.canvas.height = dom.window.innerHeight.toInt
 
     val xhr = new XMLHttpRequest()
-    xhr.open("GET", "mapdata.json")
-    xhr.onload = { (e: Event) =>
+    xhr.open("GET", "api/map")
+    xhr.onload = { e: Event =>
       if (xhr.status == 200) {
         val data = JSON.parse(xhr.responseText).asInstanceOf[js.Array[Int]]
         allData = data.toArray
@@ -58,8 +58,8 @@ object Main {
     })
   }
 
-  def process(ctx: CanvasRenderingContext2D) = {
-    val mapData = allData.drop(20).drop(28).take(138288)
+  def process(ctx: CanvasRenderingContext2D): Unit = {
+    val mapData = allData.drop(20).slice(28, 138316)
     val arrs = mapData.grouped(group).toArray
     val colors = Array("#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#e6beff", "#9a6324", "#fffac8", "#800000", "#aaffc3", "#808000", "#ffd8b1", "#000075", "#808080", "#ffffff", "#000000")
     val colorMap = mapData.distinct.filter(x => (x & 3) != 1).sorted.zip(colors).toMap

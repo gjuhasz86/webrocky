@@ -4,6 +4,8 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import better.files._
 import com.typesafe.config.ConfigFactory
+import roborock.core.DefaultTimestampProvider
+import roborock.core.MiioClient
 import roborock.core.XiaomiClientProvider
 
 import scala.annotation.tailrec
@@ -22,11 +24,16 @@ object WebServer {
 
     val config = ConfigFactory.parseFile(File("secrets.hocon").toJava)
     val user = config.getString("xiaomi.user")
-    val passHash = config.getString("xiaomi.user")
+    val passHash = config.getString("xiaomi.passHash")
     val country = config.getString("xiaomi.country")
-    val mp = new XiaomiClientProvider(user, passHash, country)
+    val ip = config.getString("miio.ip")
+    val token = config.getString("miio.token")
 
-    val bindingFuture = Http().newServerAt("0.0.0.0", 4201).bindFlow(new Routes(staticPath, mp).route)
+    val miio = new MiioClient(DefaultTimestampProvider, ip, token)
+    val xcp = new XiaomiClientProvider(user, passHash, country)
+    val xc = xcp.buildClient()
+
+    val bindingFuture = Http().newServerAt("0.0.0.0", 4201).bindFlow(new Routes(staticPath, miio, xc).route)
     println(s"Server online at http://localhost:4201/\nType 'exit' without quotes and press RETURN to stop...")
 
     exitLoop()
