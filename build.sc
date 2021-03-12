@@ -61,12 +61,15 @@ object proj extends Module {
   def dist = T {
     if (!os.exists(os.pwd / 'dist)) {os.makeDir(os.pwd / 'dist)}
     if (!os.exists(os.pwd / 'dist / 'public)) {os.makeDir(os.pwd / 'dist / 'public)}
+    val serverJar = proj.backend.assembly()
     val jsFile = proj.web.fastOpt()
     val jsFileDir = jsFile.path.toNIO.getParent
     val jsFileName = jsFile.path.last
     publicFiles
+    println(s"Copying [${serverJar.path}]")
     println(s"Copying [${jsFile.path}]")
     println(s"Copying [${os.Path(jsFileDir.toString) / s"$jsFileName.map"}]")
+    os.copy.over(serverJar.path, os.pwd / 'dist / serverJar.path.last)
     os.copy.over(jsFile.path, os.pwd / 'dist / 'public / jsFileName)
     os.copy.over(os.Path(jsFileDir.toString) / s"$jsFileName.map", os.pwd / 'dist / 'public / s"$jsFileName.map")
 

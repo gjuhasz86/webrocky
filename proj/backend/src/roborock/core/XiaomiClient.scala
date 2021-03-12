@@ -46,6 +46,7 @@ class XiaomiClient(agent: String, country: String, userId: String, serviceToken:
 
   def apiCall0(baseUrl: String, relUrl: String, params: Map[String, String], nonce: String, signature: String): Json = {
 
+    println(s"Sending request to Xiaomi [$baseUrl$relUrl]")
     val resp =
       Http(s"$baseUrl$relUrl")
         .method("POST")
@@ -70,8 +71,14 @@ class XiaomiClient(agent: String, country: String, userId: String, serviceToken:
           "_nonce" -> nonce)
         .asString
 
-    val Right(json) = parse(resp.body)
-    json
+    parse(resp.body) match {
+      case Left(err) =>
+        println(s"Could not parse mesage: [${resp.body}] $err")
+        Json.Null
+      case Right(json) =>
+        println(s"Received response from Xiaomi: [${json.noSpaces}]")
+        json
+    }
   }
 
   def rndNonce(): String = {

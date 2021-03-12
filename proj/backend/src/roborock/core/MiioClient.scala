@@ -46,9 +46,12 @@ class MiioClient(tsp: TimestampProvider, ip: String, token: String) {
     }
 
   def send(msg: MiioMsg): String = {
+    println(s"Sending to device [$msg]")
     val devId = reqDeviceId()
     val resp = MiioUtils.sendRaw(ip, 54321, msgToBytes(msg, devId, token))
-    MiioUtils.decrypt(resp.drop(32), token)
+    val res = MiioUtils.decrypt(resp.drop(32), token)
+    println(s"Received from device [$res]")
+    res
   }
 
   def msgToBytes(msg: MiioMsg, devId: Long, token: String): Array[Byte] = msg match {

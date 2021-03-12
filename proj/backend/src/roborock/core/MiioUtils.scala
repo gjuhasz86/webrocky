@@ -53,6 +53,7 @@ object MiioUtils {
     val socket = new DatagramSocket(new InetSocketAddress(31333))
     socket.setSoTimeout(10000)
     socket.send(packet)
+    println(s"Sent ${packet.getLength} bytes")
 
     val buf = new Array[Byte](65535)
     val rcvPacket = new DatagramPacket(buf, buf.length)

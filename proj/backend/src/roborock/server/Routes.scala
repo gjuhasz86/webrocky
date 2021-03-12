@@ -8,10 +8,10 @@ import com.typesafe.scalalogging.LazyLogging
 import de.heikoseeberger.akkahttpcirce.FailFastCirceSupport._
 import roborock.core.MiioClient
 import roborock.core.XiaomiClient
-
 import io.circe.syntax._
+import roborock.core.MiioMsg
 
-case class Foo(bar: String)
+
 class Routes(staticPath: String, miio: MiioClient, xc: XiaomiClient) extends LazyLogging {
   import io.circe.generic.auto._
   import Syntax._
@@ -27,6 +27,13 @@ class Routes(staticPath: String, miio: MiioClient, xc: XiaomiClient) extends Laz
         val res = xc.getMapData(url).toVector
         complete(res.asJson)
       }
+        .post("rawcommand") {
+          entity(as[MiioMsg]) { msg =>
+            println(s"Sending message [$msg]")
+            val res = miio.send(msg)
+            complete(res.asJson)
+          }
+        }
     }
   }
 
