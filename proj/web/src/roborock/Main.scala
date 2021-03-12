@@ -9,7 +9,6 @@ import org.scalajs.dom.CanvasRenderingContext2D
 import org.scalajs.dom.ext.Ajax
 import org.scalajs.dom.html
 import roborock.core.MiioMsg
-import roborock.mapparser.Pos
 import roborock.mapparser.RoboMap
 import roborock.mapparser.RoboMapBlock
 
@@ -26,7 +25,7 @@ object Main {
   var allData: Array[Byte] = Array()
   var group: Int = 344
   var roboMap: RoboMap = _
-  val scale = 3
+  var scale = 3
 
   def toImgPos(worldPos: WorldPos): ImgPos =
     ImgPos((worldPos.x / 50) - roboMap.imageBlock.offset.x, (worldPos.y / 50) - roboMap.imageBlock.offset.y)
@@ -53,8 +52,6 @@ object Main {
           val Right(data) = decode[Vector[Byte]](xhr.responseText)
           allData = data.toArray
           roboMap = RoboMap(RoboMapBlock.parseMany(data.drop(20)))
-          renderCtx.canvas.width = roboMap.imageBlock.width * scale
-          renderCtx.canvas.height = roboMap.imageBlock.height * scale
           println(s"[${js.Date.now()}] Map updated $roboMap")
           dom.window.requestAnimationFrame(updateScreen)
         } else {
@@ -67,34 +64,49 @@ object Main {
       Ajax.post("api/rawcommand", msg.asJson.noSpaces, headers = Map("Content-Type" -> "application/json"))
     }
 
-    def updateScreen(timeStamp: Double): Unit = {
-      renderCtx.clearRect(0, 0, canvas.width, canvas.height)
-      process(renderCtx)
-    }
+    def updateScreen(timeStamp: Double): Unit =
+      if (roboMap != null) {
+        renderCtx.canvas.width = roboMap.imageBlock.width * scale
+        renderCtx.canvas.height = roboMap.imageBlock.height * scale
+        renderCtx.clearRect(0, 0, canvas.width, canvas.height)
+        process(renderCtx)
+      }
 
     dom.window.oncontextmenu = (e: dom.MouseEvent) => {e.preventDefault()}
-
 
     canvas.onmousedown = (e: dom.MouseEvent) => {
       val sPos = ScreenPos(e.pageX.toInt, e.pageY.toInt)
       val iPos = toImgPos(sPos)
       val wPos = toWorldPos(iPos)
       e.button match {
-        case 0 =>
+        case 0 if roboMap != null =>
           println(wPos)
-        case 2 =>
+        case 2 if roboMap != null =>
           val msg = MiioMsg.of("app_goto_target", s"[${wPos.x},${wPos.y}]")
           println(msg)
           sendCmd(msg)
+        case _ =>
       }
     }
 
+    dom.document.onkeyup = (e: dom.KeyboardEvent) => {
+      e.key match {
+        case "+" => scale = scale + 1
+        case "-" => scale = scale - 1
+        case _ =>
+      }
+      dom.window.requestAnimationFrame(updateScreen)
+    }
+
+    updateMap()
     dom.window.setInterval(() => updateMap(), 10000)
   }
 
   def process(ctx: CanvasRenderingContext2D): Unit = {
     val colors = Array("#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#e6beff", "#9a6324", "#fffac8", "#800000", "#aaffc3", "#808000", "#ffd8b1", "#000075", "#808080", "#ffffff", "#000000")
     val colorMap = roboMap.imageBlock.image.distinct.filter(x => (x & 3) != 1).sorted.zip(colors).toMap
+    ctx.beginPath()
+    ctx.lineWidth = 1
     for (x <- 0 until roboMap.imageBlock.width; y <- 0 until roboMap.imageBlock.height) {
       val iPos = ImgPos(x, y)
       val sPos = toScreenPos(iPos)
@@ -113,24 +125,29 @@ object Main {
       ctx.fillRect(sPos.x, sPos.y, scale, scale)
     }
 
-    ctx.strokeStyle = "white"
-    ctx.fillStyle = "white"
-    (roboMap.vacPath.points zip roboMap.vacPath.points.tail).foreach {
-      case (Pos(x0, y0), Pos(x1, y1)) =>
-        ctx.beginPath()
-        val sp0 = toScreenPos(toImgPos(WorldPos(x0, y0)))
-        val sp1 = toScreenPos(toImgPos(WorldPos(x1, y1)))
+    ctx.beginPath()
+    ctx.lineWidth = 3 * scale
+    ctx.strokeStyle = "red"
+    roboMap.vacPath.points match {
+      case Nil =>
+      case head :: tail =>
+        val sp0 = toScreenPos(toImgPos(WorldPos(head.x, head.y)))
         ctx.moveTo(sp0.x, sp0.y)
-        ctx.lineTo(sp1.x, sp1.y)
-        ctx.stroke()
+        tail.foreach { p =>
+          val sp = toScreenPos(toImgPos(WorldPos(p.x, p.y)))
+          ctx.lineTo(sp.x, sp.y)
+        }
     }
+    ctx.stroke()
 
+    ctx.beginPath()
     val roboWPos = WorldPos(roboMap.roboPos.pos.x, roboMap.roboPos.pos.y)
     val roboIPos = toImgPos(roboWPos)
     val roboSPos = toScreenPos(roboIPos)
     ctx.arc(roboSPos.x, roboSPos.y, 4 * scale, 0, 2 * PI)
     ctx.strokeStyle = "black"
     ctx.fillStyle = "white"
+    ctx.lineWidth = 1
     ctx.fill()
     ctx.stroke()
   }
