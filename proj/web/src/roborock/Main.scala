@@ -9,6 +9,7 @@ import org.scalajs.dom.CanvasRenderingContext2D
 import org.scalajs.dom.ext.Ajax
 import org.scalajs.dom.html
 import roborock.core.MiioMsg
+import roborock.mapparser.Pos
 import roborock.mapparser.RoboMap
 import roborock.mapparser.RoboMapBlock
 
@@ -110,6 +111,18 @@ object Main {
           println(c)
       }
       ctx.fillRect(sPos.x, sPos.y, scale, scale)
+    }
+
+    ctx.strokeStyle = "white"
+    ctx.fillStyle = "white"
+    (roboMap.vacPath.points zip roboMap.vacPath.points.tail).foreach {
+      case (Pos(x0, y0), Pos(x1, y1)) =>
+        ctx.beginPath()
+        val sp0 = toScreenPos(toImgPos(WorldPos(x0, y0)))
+        val sp1 = toScreenPos(toImgPos(WorldPos(x1, y1)))
+        ctx.moveTo(sp0.x, sp0.y)
+        ctx.lineTo(sp1.x, sp1.y)
+        ctx.stroke()
     }
 
     val roboWPos = WorldPos(roboMap.roboPos.pos.x, roboMap.roboPos.pos.y)
