@@ -147,7 +147,7 @@ object Main {
     }
 
     updateMap()
-    dom.window.setInterval(() => updateMap(), 10000)
+    dom.window.setInterval(() => updateMap(), 5000)
   }
 
   def process(ctx: CanvasRenderingContext2D): Unit = {
@@ -174,7 +174,7 @@ object Main {
 
     ctx.beginPath()
     ctx.lineWidth = 3.4 * scale
-    ctx.strokeStyle = "red"
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.8)"
     ctx.lineJoin = "round"
     roboMap.vacPath.points match {
       case Nil =>
@@ -187,6 +187,59 @@ object Main {
         }
     }
     ctx.stroke()
+
+    ctx.beginPath()
+    ctx.lineWidth = (0.5 * scale).toInt + 1
+    ctx.setLineDash(js.Array(3 * scale, 3 * scale))
+    ctx.strokeStyle = "blue"
+    roboMap.predPath.map(_.points).getOrElse(Nil) match {
+      case Nil =>
+      case head :: tail =>
+        val sp0 = head.to[ScreenPos]
+        ctx.moveTo(sp0.x, sp0.y)
+        tail.foreach { p =>
+          val sp = p.to[ScreenPos]
+          ctx.lineTo(sp.x, sp.y)
+        }
+    }
+    ctx.stroke()
+    ctx.setLineDash(js.Array())
+
+    ctx.beginPath()
+    ctx.lineWidth = 0.5 * scale
+    ctx.fillStyle = "rgba(10, 255, 30, 0.5)"
+    ctx.strokeStyle = "rgba(0, 112, 9, 0.5)"
+    roboMap.cleanedZones.map(_.zones).getOrElse(Nil).foreach { zone =>
+      val spTl = zone.topLeft.to[ScreenPos]
+      val spBr = zone.bottomRight.to[ScreenPos]
+      ctx.rect(spTl.x, spTl.y, Math.abs(spBr.x - spTl.x), Math.abs(spBr.y - spTl.y))
+      ctx.fill()
+      ctx.stroke()
+    }
+
+    ctx.beginPath()
+    ctx.lineWidth = 0.5 * scale
+    ctx.fillStyle = "rgba(255, 5, 5, 0.5)"
+    ctx.strokeStyle = "rgba(107, 0, 0, 0.5)"
+    roboMap.noGoZones.map(_.zones).getOrElse(Nil).foreach { zone =>
+      val spTl = zone.topLeft.to[ScreenPos]
+      val spBr = zone.bottomRight.to[ScreenPos]
+      ctx.rect(spTl.x, spTl.y, Math.abs(spBr.x - spTl.x), Math.abs(spBr.y - spTl.y))
+      ctx.fill()
+      ctx.stroke()
+    }
+
+    ctx.beginPath()
+    ctx.lineWidth = 0.5 * scale
+    ctx.fillStyle = "rgba(152, 10, 255, 0.5)"
+    ctx.strokeStyle = "rgba(65, 0, 112, 0.5)"
+    roboMap.noMopZones.map(_.zones).getOrElse(Nil).foreach { zone =>
+      val spTl = zone.topLeft.to[ScreenPos]
+      val spBr = zone.bottomRight.to[ScreenPos]
+      ctx.rect(spTl.x, spTl.y, Math.abs(spBr.x - spTl.x), Math.abs(spBr.y - spTl.y))
+      ctx.fill()
+      ctx.stroke()
+    }
 
     ctx.beginPath()
     val roboSPos = roboMap.roboPos.pos.to[ScreenPos]
