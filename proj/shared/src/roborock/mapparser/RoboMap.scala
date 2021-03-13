@@ -5,16 +5,19 @@ import roborock.core.Pos
 import scala.annotation.tailrec
 
 case class Zone(topLeft: Pos.World, bottomRight: Pos.World)
+case class Wall(start: Pos.World, end: Pos.World)
 
 case class RoboMap(blocks: List[RoboMapBlock]) {
 
   val Some(imageBlock) = blocks.collectFirst { case b: ImageBlock => b }
   val Some(roboPos) = blocks.collectFirst { case b: RobotPosBlock => b }
+  val chargerPos = blocks.collectFirst { case b: ChargerPosBlock => b }
   val Some(vacPath) = blocks.collectFirst { case b: VacuumPathBlock => b }
   val predPath = blocks.collectFirst { case b: PredictedPathBlock => b }
   val cleanedZones = blocks.collectFirst { case b: CleanedZonesBlock => b }
   val noGoZones = blocks.collectFirst { case b: NoGoZonesBlock => b }
   val noMopZones = blocks.collectFirst { case b: NoMopZonesBlock => b }
+  val wallsBlock = blocks.collectFirst { case b: WallsBlock => b }
 
   def pointAt(p: Pos.Img): Byte = pointAt(p.x, p.y)
   def pointAt(x: Int, y: Int): Byte = imageBlock.image(y * imageBlock.width + x)
@@ -27,9 +30,11 @@ case class VacuumPathBlock(pointCount: Int, blockLength: Int)(val points: List[P
 case class GotoPathBlock(pointCount: Int, blockLength: Int)(val points: List[Pos.World]) extends RoboMapBlock
 case class PredictedPathBlock(pointCount: Int, blockLength: Int)(val points: List[Pos.World]) extends RoboMapBlock
 case class RobotPosBlock(pos: Pos.World, angle: Int, blockLength: Int) extends RoboMapBlock
+case class ChargerPosBlock(pos: Pos.World, blockLength: Int) extends RoboMapBlock
 case class CleanedZonesBlock(zoneCount: Int, blockLength: Int)(val zones: List[Zone]) extends RoboMapBlock
 case class NoGoZonesBlock(zoneCount: Int, blockLength: Int)(val zones: List[Zone]) extends RoboMapBlock
 case class NoMopZonesBlock(zoneCount: Int, blockLength: Int)(val zones: List[Zone]) extends RoboMapBlock
+case class WallsBlock(blockLength: Int)(val walls: List[Wall]) extends RoboMapBlock
 case class UnknownBlock(blockLength: Int) extends RoboMapBlock
 
 object RoboMapBlock {
@@ -41,7 +46,7 @@ object RoboMapBlock {
       if (input.size > block.blockLength)
         loop(input.drop(block.blockLength), block :: acc)
       else
-        acc
+        block :: acc
     }
     loop(data, Nil).reverse
   }
@@ -51,13 +56,16 @@ object RoboMapBlock {
     val List(blockType) = ByteParser.parse(S)(data)
     val block =
       blockType match {
+        case 1 => parseChargerPos(data)
         case 2 => parseImage(data)
         case 3 | 4 | 5 => parseVacuumPath(data)
         case 6 => parseCleanedZones(data)
-        case 9 | 12 => parseZones(data)
         case 8 => parseRobotPos(data)
+        case 9 | 12 => parseZones(data)
+        case 10 => parseWalls(data)
+        case 1024 => skip(data) // skip digest block
         case x =>
-          println(s"Skipping block type: $x")
+          println(s"Unknown block type: $x")
           skip(data)
       }
     block
@@ -91,6 +99,11 @@ object RoboMapBlock {
     RobotPosBlock(Pos.World(x, y), angle, hLen + dLen)
   }
 
+  def parseChargerPos(data: Vector[Byte]): ChargerPosBlock = {
+    import ByteParser._
+    val List(_, hLen, dLen, x, y) = ByteParser.parse(S, S, I, I, I)(data)
+    ChargerPosBlock(Pos.World(x, y), hLen + dLen)
+  }
 
   def parseCleanedZones(data: Vector[Byte]): RoboMapBlock = {
     import ByteParser._
@@ -119,6 +132,18 @@ object RoboMapBlock {
       case 9 => NoGoZonesBlock(zoneCount, hLen + dLen)(zones)
       case 12 => NoMopZonesBlock(zoneCount, hLen + dLen)(zones)
     }
+  }
+
+  def parseWalls(data: Vector[Byte]): WallsBlock = {
+    import ByteParser._
+    val List(_, hLen, dLen) = ByteParser.parse(S, S, I)(data)
+    val walls =
+      data.slice(hLen, hLen + dLen)
+        .grouped(8)
+        .map(ByteParser.parse(S, S, S, S)(_))
+        .map { case List(x1, y1, x2, y2) => Wall(Pos.World(x1, y1), Pos.World(x2, y2)) }
+        .toList
+    WallsBlock(hLen + dLen)(walls)
   }
 
   def skip(data: Vector[Byte]): UnknownBlock = {

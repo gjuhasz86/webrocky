@@ -241,6 +241,17 @@ object Main {
       ctx.stroke()
     }
 
+    roboMap.chargerPos.foreach { chargerPos =>
+      ctx.beginPath()
+      val chargerSp = chargerPos.pos.to[ScreenPos]
+      ctx.arc(chargerSp.x, chargerSp.y, 2 * scale, 0, 2 * PI)
+      ctx.strokeStyle = "black"
+      ctx.fillStyle = "green"
+      ctx.lineWidth = 1
+      ctx.fill()
+      ctx.stroke()
+    }
+
     ctx.beginPath()
     val roboSPos = roboMap.roboPos.pos.to[ScreenPos]
     ctx.arc(roboSPos.x, roboSPos.y, 3.5 * scale, 0, 2 * PI)
