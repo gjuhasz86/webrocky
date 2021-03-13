@@ -9,6 +9,7 @@ import org.scalajs.dom.CanvasRenderingContext2D
 import org.scalajs.dom.ext.Ajax
 import org.scalajs.dom.html
 import roborock.core.MiioMsg
+import roborock.core.Pos
 import roborock.mapparser.RoboMap
 import roborock.mapparser.RoboMapBlock
 
@@ -17,27 +18,73 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 case class ScreenPos(x: Int, y: Int)
-case class WorldPos(x: Int, y: Int)
-case class ImgPos(x: Int, y: Int)
+
+trait Converter[-A, +B] {
+  def convert(a: A): B
+}
+
+object Converter {
+
+  implicit class PosConverterOps[A](val self: A) extends AnyVal {
+    def to[B](implicit c: Converter[A, B]): B = c.convert(self)
+  }
+
+  implicit def worldScreenPosConverter(
+    implicit wi: Converter[Pos.World, Pos.Img], is: Converter[Pos.Img, ScreenPos]
+  ): Converter[Pos.World, ScreenPos] =
+    (wp: Pos.World) => is.convert(wi.convert(wp))
+
+  implicit def screenWorldPosConverter(
+    implicit iw: Converter[Pos.Img, Pos.World], si: Converter[ScreenPos, Pos.Img]
+  ): Converter[ScreenPos, Pos.World] =
+    (sp: ScreenPos) => iw.convert(si.convert(sp))
+
+  trait WorldImgPosConverter extends Converter[Pos.World, Pos.Img] {
+    def offset: Pos.Img
+    override def convert(wp: Pos.World): Pos.Img =
+      Pos.Img((wp.x / 50.0) - offset.x, (wp.y / 50.0) - offset.y)
+  }
+
+  trait ImgWorldPosConverter extends Converter[Pos.Img, Pos.World] {
+    def offset: Pos.Img
+    override def convert(ip: Pos.Img): Pos.World =
+      Pos.World(Math.round((offset.x + ip.xx) * 50).toInt, Math.round((offset.y + ip.yy) * 50).toInt)
+  }
+
+  trait ScreenImgPosConverter extends Converter[ScreenPos, Pos.Img] {
+    def scale: Double
+    override def convert(sp: ScreenPos): Pos.Img =
+      Pos.Img(sp.y / scale, sp.x / scale)
+  }
+
+  trait ImgScreenPosConverter extends Converter[Pos.Img, ScreenPos] {
+    def scale: Double
+    override def convert(ip: Pos.Img): ScreenPos =
+      ScreenPos(Math.round(ip.yy * scale).toInt, Math.round(ip.xx * scale).toInt)
+  }
+
+}
 
 object Main {
 
   var allData: Array[Byte] = Array()
   var group: Int = 344
   var roboMap: RoboMap = _
-  var scale = 3
+  var scale = 4.0
 
-  def toImgPos(worldPos: WorldPos): ImgPos =
-    ImgPos((worldPos.x / 50) - roboMap.imageBlock.offset.x, (worldPos.y / 50) - roboMap.imageBlock.offset.y)
+  import Converter._
 
-  def toScreenPos(imgPos: ImgPos): ScreenPos =
-    ScreenPos(imgPos.y * scale, imgPos.x * scale)
+  implicit val iwConv: ImgWorldPosConverter =
+    new ImgWorldPosConverter {override def offset: Pos.Img = roboMap.imageBlock.offset}
 
-  def toWorldPos(imgPos: ImgPos): WorldPos =
-    WorldPos((roboMap.imageBlock.offset.x + imgPos.x) * 50, (roboMap.imageBlock.offset.y + imgPos.y) * 50)
+  implicit val wiConv: WorldImgPosConverter =
+    new WorldImgPosConverter {override def offset: Pos.Img = roboMap.imageBlock.offset}
 
-  def toImgPos(screenPos: ScreenPos): ImgPos =
-    ImgPos(screenPos.y / scale, screenPos.x / scale)
+  implicit val isConv: ImgScreenPosConverter =
+    new ImgScreenPosConverter {override def scale: Double = Main.scale}
+
+  implicit val siConv: ScreenImgPosConverter =
+    new ScreenImgPosConverter {override def scale: Double = Main.scale}
 
   @JSExportTopLevel("main")
   def main(canvas: html.Canvas): Unit = {
@@ -66,8 +113,8 @@ object Main {
 
     def updateScreen(timeStamp: Double): Unit =
       if (roboMap != null) {
-        renderCtx.canvas.width = roboMap.imageBlock.width * scale
-        renderCtx.canvas.height = roboMap.imageBlock.height * scale
+        renderCtx.canvas.width = (roboMap.imageBlock.width * scale).toInt + 1
+        renderCtx.canvas.height = (roboMap.imageBlock.height * scale).toInt + 1
         renderCtx.clearRect(0, 0, canvas.width, canvas.height)
         process(renderCtx)
       }
@@ -76,8 +123,9 @@ object Main {
 
     canvas.onmousedown = (e: dom.MouseEvent) => {
       val sPos = ScreenPos(e.pageX.toInt, e.pageY.toInt)
-      val iPos = toImgPos(sPos)
-      val wPos = toWorldPos(iPos)
+      val wPos = sPos.to[Pos.World]
+
+      println(s"$sPos ${sPos.to[Pos.Img]} ${sPos.to[Pos.Img].to[Pos.World]} ${sPos.to[Pos.World].to[Pos.Img]}")
       e.button match {
         case 0 if roboMap != null =>
           println(wPos)
@@ -108,8 +156,7 @@ object Main {
     ctx.beginPath()
     ctx.lineWidth = 1
     for (x <- 0 until roboMap.imageBlock.width; y <- 0 until roboMap.imageBlock.height) {
-      val iPos = ImgPos(x, y)
-      val sPos = toScreenPos(iPos)
+      val sPos = Pos.Img(x, y).to[ScreenPos]
       roboMap.pointAt(x, y) match {
         case 0 =>
           ctx.fillStyle = "white"
@@ -122,29 +169,28 @@ object Main {
         case c =>
           println(c)
       }
-      ctx.fillRect(sPos.x, sPos.y, scale, scale)
+      ctx.fillRect(sPos.x - (scale / 2), sPos.y - (scale / 2), scale, scale)
     }
 
     ctx.beginPath()
-    ctx.lineWidth = 3 * scale
+    ctx.lineWidth = 3.4 * scale
     ctx.strokeStyle = "red"
+    ctx.lineJoin = "round"
     roboMap.vacPath.points match {
       case Nil =>
       case head :: tail =>
-        val sp0 = toScreenPos(toImgPos(WorldPos(head.x, head.y)))
+        val sp0 = head.to[ScreenPos]
         ctx.moveTo(sp0.x, sp0.y)
         tail.foreach { p =>
-          val sp = toScreenPos(toImgPos(WorldPos(p.x, p.y)))
+          val sp = p.to[ScreenPos]
           ctx.lineTo(sp.x, sp.y)
         }
     }
     ctx.stroke()
 
     ctx.beginPath()
-    val roboWPos = WorldPos(roboMap.roboPos.pos.x, roboMap.roboPos.pos.y)
-    val roboIPos = toImgPos(roboWPos)
-    val roboSPos = toScreenPos(roboIPos)
-    ctx.arc(roboSPos.x, roboSPos.y, 4 * scale, 0, 2 * PI)
+    val roboSPos = roboMap.roboPos.pos.to[ScreenPos]
+    ctx.arc(roboSPos.x, roboSPos.y, 3.5 * scale, 0, 2 * PI)
     ctx.strokeStyle = "black"
     ctx.fillStyle = "white"
     ctx.lineWidth = 1

@@ -45,6 +45,17 @@ class MiioClient(tsp: TimestampProvider, ip: String, token: String) {
       case (_, _) => -1
     }
 
+  def reqHistoryMapName(mapId: String): String =
+    retry {
+      val res = send(MiioMsg.of("get_clean_record_map", s"[$mapId]"))
+      val Right(json) = parse(res)
+      val mapName = json.asObject.get("result").get.asArray.get.head.asString.get
+      mapName
+    } {
+      case (retry, "retry") if retry < 10 => 2000
+      case (_, _) => -1
+    }
+
   def send(msg: MiioMsg): String = {
     println(s"Sending to device [$msg]")
     val devId = reqDeviceId()

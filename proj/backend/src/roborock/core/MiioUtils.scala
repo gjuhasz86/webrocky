@@ -49,8 +49,8 @@ object MiioUtils {
   }
 
   def sendRaw(ip: String, port: Int, bytes: Array[Byte]): Array[Byte] = {
-    val packet = new DatagramPacket(bytes, bytes.length, InetAddress.getByName("192.168.0.100"), 54321)
-    val socket = new DatagramSocket(new InetSocketAddress(31333))
+    val packet = new DatagramPacket(bytes, bytes.length, InetAddress.getByName(ip), 54321)
+    val socket = new DatagramSocket()
     socket.setSoTimeout(10000)
     socket.send(packet)
     println(s"Sent ${packet.getLength} bytes")
