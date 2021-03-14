@@ -7,12 +7,36 @@
 <body style="margin: 0px">
 
 <div>
-    <canvas style="display: block" id="canvas" width="255" height="255"/>
+    <div id="toolbar">
+        Map zoom (<span id="zoom-scale">_</span>x)
+        <button id="zoom-plus">+</button>
+        <button id="zoom-minus">-</button>
+        <br/>
+        <input id="refresh-auto" type="checkbox">
+        Refresh (<span id="refresh-interval">_</span>s)
+        <button id="refresh-plus">+</button>
+        <button id="refresh-minus">-</button>
+        <button id="refresh-now">Now</button>
+        <br/>
+        Actions
+        <button id="action-stop">Stop</button>
+        <button id="action-dock">Dock</button>
+        <button id="action-spot">Spot</button>
+        <br/>
+        Right click: Go to target
+    </div>
+    <canvas style="display: block" id="canvas" width="255" height="255"></canvas>
 </div>
 
 <script type="text/javascript" src="out.js"></script>
 <script>
     main(document.getElementById('canvas'));
+
+
+
+
+
+
 
 </script>
 </body>

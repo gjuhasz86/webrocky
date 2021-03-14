@@ -70,7 +70,10 @@ object Main {
   var allData: Array[Byte] = Array()
   var group: Int = 344
   var roboMap: RoboMap = _
-  var scale = 4.0
+  var scale: Double = 4.0
+  var refreshInterval: Int = 5
+  var autoRefresh: Boolean = true
+  var autoRefreshHandle: Int = 0
 
   import Converter._
 
@@ -88,12 +91,17 @@ object Main {
 
   @JSExportTopLevel("main")
   def main(canvas: html.Canvas): Unit = {
+    dom.document.getElementById("zoom-scale").textContent = scale.toString
+    dom.document.getElementById("refresh-interval").textContent = refreshInterval.toString
+    dom.document.getElementById("refresh-auto").setAttribute("checked", autoRefresh.toString)
+
     val renderCtx: CanvasRenderingContext2D =
       canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
     renderCtx.canvas.width = dom.window.innerWidth.toInt
     renderCtx.canvas.height = dom.window.innerHeight.toInt
 
     def updateMap(): Unit = {
+      println(s"Updating...")
       Ajax.get("api/map").foreach { xhr =>
         if (xhr.status == 200) {
           val Right(data) = decode[Vector[Byte]](xhr.responseText)
@@ -105,6 +113,7 @@ object Main {
           println("err")
         }
       }
+      println(s"Updated...")
     }
 
     def sendCmd(msg: MiioMsg): Unit = {
@@ -143,11 +152,66 @@ object Main {
         case "-" => scale = scale - 1
         case _ =>
       }
+      dom.document.getElementById("zoom-scale").textContent = scale.toString
       dom.window.requestAnimationFrame(updateScreen)
     }
 
+    dom.document.getElementById("zoom-plus").addEventListener("click", (e: dom.Event) => {
+      scale = scale + 1
+      dom.document.getElementById("zoom-scale").textContent = scale.toString
+      dom.window.requestAnimationFrame(updateScreen)
+    })
+    dom.document.getElementById("zoom-minus").addEventListener("click", (e: dom.Event) => {
+      if (scale > 1) {
+        scale = scale - 1
+        dom.document.getElementById("zoom-scale").textContent = scale.toString
+        dom.window.requestAnimationFrame(updateScreen)
+      }
+    })
+    dom.document.getElementById("refresh-auto").addEventListener("click", (e: dom.Event) => {
+      autoRefresh = !autoRefresh
+      if (autoRefresh) {
+        autoRefreshHandle = dom.window.setInterval(() => updateMap(), refreshInterval * 1000)
+      } else {
+        dom.window.clearInterval(autoRefreshHandle)
+      }
+      dom.document.getElementById("refresh-auto").setAttribute("checked", autoRefresh.toString)
+    })
+    dom.document.getElementById("refresh-plus").addEventListener("click", (e: dom.Event) => {
+      refreshInterval = refreshInterval + 1
+      if (autoRefresh) {
+        dom.window.clearInterval(autoRefreshHandle)
+        autoRefreshHandle = dom.window.setInterval(() => updateMap(), refreshInterval * 1000)
+      }
+      dom.document.getElementById("refresh-interval").textContent = refreshInterval.toString
+
+    })
+    dom.document.getElementById("refresh-minus").addEventListener("click", (e: dom.Event) => {
+      if (refreshInterval > 0) {
+        refreshInterval = refreshInterval - 1
+        if (autoRefresh) {
+          dom.window.clearInterval(autoRefreshHandle)
+          autoRefreshHandle = dom.window.setInterval(() => updateMap(), refreshInterval * 1000)
+        }
+        dom.document.getElementById("refresh-interval").textContent = refreshInterval.toString
+      }
+    })
+    dom.document.getElementById("refresh-now").addEventListener("click", (e: dom.Event) => {
+      updateMap()
+    })
+
+    dom.document.getElementById("action-stop").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("app_stop"))
+    })
+    dom.document.getElementById("action-dock").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("app_charge"))
+    })
+    dom.document.getElementById("action-spot").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("app_spot"))
+    })
+
     updateMap()
-    dom.window.setInterval(() => updateMap(), 5000)
+    autoRefreshHandle = dom.window.setInterval(() => updateMap(), refreshInterval * 1000)
   }
 
   def process(ctx: CanvasRenderingContext2D): Unit = {
