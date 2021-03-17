@@ -7,6 +7,7 @@ import io.circe.syntax._
 import org.scalajs.dom
 import org.scalajs.dom.CanvasRenderingContext2D
 import org.scalajs.dom.ext.Ajax
+import org.scalajs.dom.ext.KeyCode
 import org.scalajs.dom.html
 import roborock.core.MiioMsg
 import roborock.core.Pos
@@ -20,7 +21,6 @@ import scala.scalajs.js.annotation.JSExportTopLevel
 case class ScreenPos(x: Int, y: Int)
 
 object Main {
-
   var allData: Array[Byte] = Array()
   var group: Int = 344
   var roboMap: RoboMap = _
@@ -28,6 +28,8 @@ object Main {
   var refreshInterval: Int = 5
   var autoRefresh: Boolean = true
   var autoRefreshHandle: Int = 0
+  var rcSeqNum = 1
+  var rcHandle = 0
 
   import Converter._
 
@@ -85,7 +87,8 @@ object Main {
     dom.window.oncontextmenu = (e: dom.MouseEvent) => {e.preventDefault()}
 
     canvas.onmousedown = (e: dom.MouseEvent) => {
-      val sPos = ScreenPos(e.pageX.toInt, e.pageY.toInt)
+      val canvasRect = canvas.getBoundingClientRect()
+      val sPos = ScreenPos(e.clientX.toInt - canvasRect.left.toInt, e.clientY.toInt - canvasRect.top.toInt)
       val wPos = sPos.to[Pos.World]
 
       println(s"$sPos ${sPos.to[Pos.Img]} ${sPos.to[Pos.Img].to[Pos.World]} ${sPos.to[Pos.World].to[Pos.Img]}")
@@ -100,15 +103,74 @@ object Main {
       }
     }
 
+    var rcOmega: Option[Double] = None
+    var rcVelocity: Option[Double] = None
+
+    def sendRc(force: Boolean = false): Unit = {
+      rcSeqNum = rcSeqNum + 1
+      val omega = rcOmega.getOrElse(0.0)
+      val velocity = rcVelocity.getOrElse(0.0)
+
+      val msg =
+        MiioMsg.of("app_rc_move", s"""[{"omega":$omega, "velocity":$velocity, "seqnum":$rcSeqNum, "duration":5000}]""")
+
+      if (force || rcOmega.isDefined || rcVelocity.isDefined) {
+        sendCmd(msg)
+      }
+    }
+
     dom.document.onkeyup = (e: dom.KeyboardEvent) => {
+
+      e.keyCode match {
+        case KeyCode.Up | KeyCode.Down =>
+          rcVelocity = None
+          sendRc(force = true)
+        case KeyCode.Left | KeyCode.Right =>
+          rcOmega = None
+          sendRc(force = true)
+        case _ =>
+      }
+
       e.key match {
         case "+" => scale = scale + 1
         case "-" => scale = scale - 1
+        case "r" => sendCmd(MiioMsg.of("app_rc_start"))
+        case "s" => sendCmd(MiioMsg.of("app_rc_end"))
         case _ =>
       }
+
       dom.document.getElementById("zoom-scale").textContent = scale.toString
       dom.window.requestAnimationFrame(updateScreen)
+
+
     }
+
+    dom.document.onkeydown = (e: dom.KeyboardEvent) => {
+      (e.keyCode, rcOmega) match {
+        case (KeyCode.Left, Some(om)) if om > 0 =>
+        case (KeyCode.Left, _) =>
+          rcOmega = Some(3.1)
+          sendRc()
+        case (KeyCode.Right, Some(om)) if om < 0 =>
+        case (KeyCode.Right, _) =>
+          rcOmega = Some(-3.1)
+          sendRc()
+        case _ =>
+      }
+      (e.keyCode, rcVelocity) match {
+        case (KeyCode.Up, Some(v)) if v > 0 =>
+        case (KeyCode.Up, _) =>
+          rcVelocity = Some(0.3)
+          sendRc()
+        case (KeyCode.Down, Some(v)) if v < 0 =>
+        case (KeyCode.Down, _) =>
+          rcVelocity = Some(-0.3)
+          sendRc()
+        case _ =>
+      }
+    }
+    rcHandle = dom.window.setInterval(() => {sendRc()}, 4000)
+
 
     dom.document.getElementById("zoom-plus").addEventListener("click", (e: dom.Event) => {
       scale = scale + 1
@@ -162,6 +224,9 @@ object Main {
     })
     dom.document.getElementById("action-spot").addEventListener("click", (e: dom.Event) => {
       sendCmd(MiioMsg.of("app_spot"))
+    })
+    dom.document.getElementById("action-fanspeed-1").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("set_custom_mode", "[101]"))
     })
 
     updateMap()
