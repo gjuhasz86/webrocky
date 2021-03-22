@@ -149,11 +149,11 @@ object Main {
       (e.keyCode, rcOmega) match {
         case (KeyCode.Left, Some(om)) if om > 0 =>
         case (KeyCode.Left, _) =>
-          rcOmega = Some(3.1)
+          rcOmega = Some(2.0)
           sendRc()
         case (KeyCode.Right, Some(om)) if om < 0 =>
         case (KeyCode.Right, _) =>
-          rcOmega = Some(-3.1)
+          rcOmega = Some(-2.0)
           sendRc()
         case _ =>
       }
@@ -227,6 +227,15 @@ object Main {
     })
     dom.document.getElementById("action-fanspeed-1").addEventListener("click", (e: dom.Event) => {
       sendCmd(MiioMsg.of("set_custom_mode", "[101]"))
+    })
+    dom.document.getElementById("action-fanspeed-2").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("set_custom_mode", "[102]"))
+    })
+    dom.document.getElementById("action-fanspeed-3").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("set_custom_mode", "[103]"))
+    })
+    dom.document.getElementById("action-fanspeed-4").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("set_custom_mode", "[104]"))
     })
 
     updateMap()
