@@ -24,7 +24,10 @@ $ java -cp out.jar roborock.server.WebServer public # Webserver is started at ht
 Example to generate the md5 hash of your password:
 ```
 $ echo -n "mysecretpassword" | md5sum | tr [:lower:] [:upper:]
+4CAB2A2DB6A3C31B01D804DEF28276E6  -
 ```
+(The above example shows the actual output for the password `mysecretpassword`.
+If you generate the hash by any other means, make sure it matches this example.) 
 
 ## Appendix
 ### Legal
