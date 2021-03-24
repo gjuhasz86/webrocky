@@ -42,6 +42,8 @@ object Main {
   var mouseDownPos: Option[Pos.World] = None
   var selection: MapSelection = NoSelection
   var mousePos: ScreenPos = ScreenPos(0, 0)
+  var rcUserVelocity = 0.2
+  var rcUserOmega = 1.2
 
   import Converter._
 
@@ -62,6 +64,8 @@ object Main {
     dom.document.getElementById("zoom-scale").textContent = scale.toString
     dom.document.getElementById("refresh-interval").textContent = refreshInterval.toString
     dom.document.getElementById("refresh-auto").setAttribute("checked", autoRefresh.toString)
+    dom.document.getElementById("rc-velocity").textContent = f"$rcUserVelocity%.2f"
+    dom.document.getElementById("rc-omega").textContent = f"$rcUserOmega%.1f"
 
     val renderCtx: CanvasRenderingContext2D =
       canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
@@ -72,8 +76,6 @@ object Main {
       canvasOverlay.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
     renderCtxOverlay.canvas.width = dom.window.innerWidth.toInt
     renderCtxOverlay.canvas.height = dom.window.innerHeight.toInt
-    println(renderCtxOverlay.canvas.width)
-    println(renderCtxOverlay.canvas.width)
 
     def updateMap(): Unit = {
       println(s"Updating...")
@@ -217,22 +219,22 @@ object Main {
       (e.keyCode, rcOmega) match {
         case (KeyCode.Left, Some(om)) if om > 0 =>
         case (KeyCode.Left, _) =>
-          rcOmega = Some(2.0)
+          rcOmega = Some(rcUserOmega)
           sendRc()
         case (KeyCode.Right, Some(om)) if om < 0 =>
         case (KeyCode.Right, _) =>
-          rcOmega = Some(-2.0)
+          rcOmega = Some(-rcUserOmega)
           sendRc()
         case _ =>
       }
       (e.keyCode, rcVelocity) match {
         case (KeyCode.Up, Some(v)) if v > 0 =>
         case (KeyCode.Up, _) =>
-          rcVelocity = Some(0.3)
+          rcVelocity = Some(rcUserVelocity)
           sendRc()
         case (KeyCode.Down, Some(v)) if v < 0 =>
         case (KeyCode.Down, _) =>
-          rcVelocity = Some(-0.3)
+          rcVelocity = Some(-rcUserVelocity)
           sendRc()
         case _ =>
       }
@@ -304,6 +306,37 @@ object Main {
     })
     dom.document.getElementById("action-fanspeed-4").addEventListener("click", (e: dom.Event) => {
       sendCmd(MiioMsg.of("set_custom_mode", "[104]"))
+    })
+    dom.document.getElementById("action-rc-start").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("app_rc_start"))
+    })
+    dom.document.getElementById("action-rc-stop").addEventListener("click", (e: dom.Event) => {
+      sendCmd(MiioMsg.of("app_rc_end"))
+    })
+
+    dom.document.getElementById("action-rc-v-up").addEventListener("click", (e: dom.Event) => {
+      if (rcUserVelocity < 0.3) {
+        rcUserVelocity = Math.round((rcUserVelocity + 0.05) * 100) / 100.0
+        dom.document.getElementById("rc-velocity").textContent = f"$rcUserVelocity%.2f"
+      }
+    })
+    dom.document.getElementById("action-rc-v-down").addEventListener("click", (e: dom.Event) => {
+      if (rcUserVelocity > 0) {
+        rcUserVelocity = Math.round((rcUserVelocity - 0.05) * 100) / 100.0
+        dom.document.getElementById("rc-velocity").textContent = f"$rcUserVelocity%.2f"
+      }
+    })
+    dom.document.getElementById("action-rc-o-up").addEventListener("click", (e: dom.Event) => {
+      if (rcUserOmega < 3.1) {
+        rcUserOmega = Math.round((rcUserOmega + 0.2) * 10) / 10.0
+        dom.document.getElementById("rc-omega").textContent = f"$rcUserOmega%.1f"
+      }
+    })
+    dom.document.getElementById("action-rc-o-down").addEventListener("click", (e: dom.Event) => {
+      if (rcUserOmega > 0) {
+        rcUserOmega = Math.round((rcUserOmega - 0.2) * 10) / 10.0
+        dom.document.getElementById("rc-omega").textContent = f"$rcUserOmega%.1f"
+      }
     })
 
     updateMap()
