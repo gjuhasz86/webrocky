@@ -44,6 +44,7 @@ object Main {
   var mousePos: ScreenPos = ScreenPos(0, 0)
   var rcUserVelocity = 0.2
   var rcUserOmega = 1.2
+  var cleanRepeat = 1
 
   import Converter._
 
@@ -66,6 +67,9 @@ object Main {
     dom.document.getElementById("refresh-auto").setAttribute("checked", autoRefresh.toString)
     dom.document.getElementById("rc-velocity").textContent = f"$rcUserVelocity%.2f"
     dom.document.getElementById("rc-omega").textContent = f"$rcUserOmega%.1f"
+    dom.document.getElementById("clean-repeat").textContent = cleanRepeat.toString
+    dom.document.getElementById("action-zone-clean").setAttribute("disabled", "true")
+    dom.document.getElementById("action-goto").setAttribute("disabled", "true")
 
     val renderCtx: CanvasRenderingContext2D =
       canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
@@ -160,11 +164,15 @@ object Main {
         case (0, Some(pos)) if roboMap != null =>
           if (Math.abs(pos.x - wPos.x) < 150 && Math.abs(pos.y - wPos.y) < 150) {
             selection = TargetSelection(wPos)
+            dom.document.getElementById("action-zone-clean").setAttribute("disabled", "true")
+            dom.document.getElementById("action-goto").removeAttribute("disabled")
           } else {
             selection = ZoneSelection(Zone(
               topLeft = Pos.World(Math.min(wPos.x, pos.x), Math.min(wPos.y, pos.y)),
               bottomRight = Pos.World(Math.max(wPos.x, pos.x), Math.max(wPos.y, pos.y))
             ))
+            dom.document.getElementById("action-zone-clean").removeAttribute("disabled")
+            dom.document.getElementById("action-goto").setAttribute("disabled", "true")
           }
         case _ =>
       }
@@ -204,8 +212,8 @@ object Main {
       e.key match {
         case "+" => scale = scale + 1
         case "-" => scale = scale - 1
-        case "r" => sendCmd(MiioMsg.of("app_rc_start"))
-        case "s" => sendCmd(MiioMsg.of("app_rc_end"))
+        //        case "r" => sendCmd(MiioMsg.of("app_rc_start"))
+        //        case "s" => sendCmd(MiioMsg.of("app_rc_end"))
         case _ =>
       }
 
@@ -313,6 +321,23 @@ object Main {
     dom.document.getElementById("action-rc-stop").addEventListener("click", (e: dom.Event) => {
       sendCmd(MiioMsg.of("app_rc_end"))
     })
+    dom.document.getElementById("action-goto").addEventListener("click", (e: dom.Event) => {
+      selection match {
+        case TargetSelection(wPos) =>
+          val msg = MiioMsg.of("app_goto_target", s"[${wPos.x},${wPos.y}]")
+          sendCmd(msg)
+        case _ =>
+      }
+    })
+    dom.document.getElementById("action-zone-clean").addEventListener("click", (e: dom.Event) => {
+      selection match {
+        case ZoneSelection(zone) =>
+          val tl = zone.topLeft
+          val br = zone.bottomRight
+          sendCmd(MiioMsg.of("app_zoned_clean", s"[${tl.x},${tl.y},${br.x},${br.y},$cleanRepeat]"))
+        case _ =>
+      }
+    })
 
     dom.document.getElementById("action-rc-v-up").addEventListener("click", (e: dom.Event) => {
       if (rcUserVelocity < 0.3) {
@@ -336,6 +361,16 @@ object Main {
       if (rcUserOmega > 0) {
         rcUserOmega = Math.round((rcUserOmega - 0.2) * 10) / 10.0
         dom.document.getElementById("rc-omega").textContent = f"$rcUserOmega%.1f"
+      }
+    })
+    dom.document.getElementById("action-repeat-up").addEventListener("click", (e: dom.Event) => {
+      cleanRepeat = cleanRepeat + 1
+      dom.document.getElementById("clean-repeat").textContent = cleanRepeat.toString
+    })
+    dom.document.getElementById("action-repeat-down").addEventListener("click", (e: dom.Event) => {
+      if (cleanRepeat > 1) {
+        cleanRepeat = cleanRepeat - 1
+        dom.document.getElementById("clean-repeat").textContent = cleanRepeat.toString
       }
     })
 
