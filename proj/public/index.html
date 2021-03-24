@@ -30,19 +30,19 @@
         <button id="action-fanspeed-4">Max</button>
         <br/>
         Right click: Go to target
+        <br/>
+        Selected coordinates: <span id="coord-selection">_</span>
     </div>
-    <canvas style="display: block" id="canvas" width="255" height="255"></canvas>
+    <div style="position: relative">
+        <canvas style="display: block;position: absolute" id="canvas" width="255" height="255"></canvas>
+        <canvas style="display: block;position: absolute;background:transparent;" id="canvas-overlay" width="255"
+                height="255"></canvas>
+    </div>
 </div>
 
 <script type="text/javascript" src="out.js"></script>
 <script>
-    main(document.getElementById('canvas'));
-
-
-
-
-
-
+    main(document.getElementById('canvas'),document.getElementById('canvas-overlay'));
 
 
 

@@ -13,14 +13,23 @@ import roborock.core.MiioMsg
 import roborock.core.Pos
 import roborock.mapparser.RoboMap
 import roborock.mapparser.RoboMapBlock
+import roborock.mapparser.Zone
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.scalajs.js
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 case class ScreenPos(x: Int, y: Int)
+sealed trait MapSelection
+object MapSelection {
+  case class ZoneSelection(zone: Zone) extends MapSelection
+  case class TargetSelection(pos: Pos.World) extends MapSelection
+  case object NoSelection extends MapSelection
+}
 
 object Main {
+  import MapSelection._
+
   var allData: Array[Byte] = Array()
   var group: Int = 344
   var roboMap: RoboMap = _
@@ -30,6 +39,9 @@ object Main {
   var autoRefreshHandle: Int = 0
   var rcSeqNum = 1
   var rcHandle = 0
+  var mouseDownPos: Option[Pos.World] = None
+  var selection: MapSelection = NoSelection
+  var mousePos: ScreenPos = ScreenPos(0, 0)
 
   import Converter._
 
@@ -46,7 +58,7 @@ object Main {
     new ScreenImgPosConverter {override def scale: Double = Main.scale}
 
   @JSExportTopLevel("main")
-  def main(canvas: html.Canvas): Unit = {
+  def main(canvas: html.Canvas, canvasOverlay: html.Canvas): Unit = {
     dom.document.getElementById("zoom-scale").textContent = scale.toString
     dom.document.getElementById("refresh-interval").textContent = refreshInterval.toString
     dom.document.getElementById("refresh-auto").setAttribute("checked", autoRefresh.toString)
@@ -55,6 +67,13 @@ object Main {
       canvas.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
     renderCtx.canvas.width = dom.window.innerWidth.toInt
     renderCtx.canvas.height = dom.window.innerHeight.toInt
+
+    val renderCtxOverlay: CanvasRenderingContext2D =
+      canvasOverlay.getContext("2d").asInstanceOf[dom.CanvasRenderingContext2D]
+    renderCtxOverlay.canvas.width = dom.window.innerWidth.toInt
+    renderCtxOverlay.canvas.height = dom.window.innerHeight.toInt
+    println(renderCtxOverlay.canvas.width)
+    println(renderCtxOverlay.canvas.width)
 
     def updateMap(): Unit = {
       println(s"Updating...")
@@ -76,17 +95,43 @@ object Main {
       Ajax.post("api/rawcommand", msg.asJson.noSpaces, headers = Map("Content-Type" -> "application/json"))
     }
 
-    def updateScreen(timeStamp: Double): Unit =
+    def updateScreen(timeStamp: Double): Unit = {
       if (roboMap != null) {
         renderCtx.canvas.width = (roboMap.imageBlock.width * scale).toInt + 1
         renderCtx.canvas.height = (roboMap.imageBlock.height * scale).toInt + 1
         renderCtx.clearRect(0, 0, canvas.width, canvas.height)
+        renderCtxOverlay.canvas.width = (roboMap.imageBlock.width * scale).toInt + 1
+        renderCtxOverlay.canvas.height = (roboMap.imageBlock.height * scale).toInt + 1
         process(renderCtx)
+        drawOverlay(renderCtxOverlay)
       }
+      updateSelection()
+    }
+
+    def updateOverlay(): Unit = {
+      renderCtxOverlay.clearRect(0, 0, renderCtxOverlay.canvas.width, renderCtxOverlay.canvas.height)
+      drawOverlay(renderCtxOverlay)
+    }
+
+    def updateSelection(): Unit = {
+      val text = selection match {
+        case ZoneSelection(Zone(tl, br)) => s"[${tl.x},${tl.y},${br.x},${br.y}]"
+        case TargetSelection(p) => s"[${p.x},${p.y}]"
+        case MapSelection.NoSelection => "_"
+      }
+      dom.document.getElementById("coord-selection").textContent = text
+    }
 
     dom.window.oncontextmenu = (e: dom.MouseEvent) => {e.preventDefault()}
 
-    canvas.onmousedown = (e: dom.MouseEvent) => {
+    canvasOverlay.onmousemove = (e: dom.MouseEvent) => {
+      val canvasRect = canvasOverlay.getBoundingClientRect()
+      val sPos = ScreenPos(e.clientX.toInt - canvasRect.left.toInt, e.clientY.toInt - canvasRect.top.toInt)
+      mousePos = sPos
+      updateOverlay()
+    }
+
+    canvasOverlay.onmousedown = (e: dom.MouseEvent) => {
       val canvasRect = canvas.getBoundingClientRect()
       val sPos = ScreenPos(e.clientX.toInt - canvasRect.left.toInt, e.clientY.toInt - canvasRect.top.toInt)
       val wPos = sPos.to[Pos.World]
@@ -94,6 +139,8 @@ object Main {
       println(s"$sPos ${sPos.to[Pos.Img]} ${sPos.to[Pos.Img].to[Pos.World]} ${sPos.to[Pos.World].to[Pos.Img]}")
       e.button match {
         case 0 if roboMap != null =>
+          mouseDownPos = Some(wPos)
+          selection = NoSelection
           println(wPos)
         case 2 if roboMap != null =>
           val msg = MiioMsg.of("app_goto_target", s"[${wPos.x},${wPos.y}]")
@@ -101,6 +148,27 @@ object Main {
           sendCmd(msg)
         case _ =>
       }
+    }
+    canvasOverlay.onmouseup = (e: dom.MouseEvent) => {
+      val canvasRect = canvas.getBoundingClientRect()
+      val sPos = ScreenPos(e.clientX.toInt - canvasRect.left.toInt, e.clientY.toInt - canvasRect.top.toInt)
+      val wPos = sPos.to[Pos.World]
+
+      (e.button, mouseDownPos) match {
+        case (0, Some(pos)) if roboMap != null =>
+          if (Math.abs(pos.x - wPos.x) < 150 && Math.abs(pos.y - wPos.y) < 150) {
+            selection = TargetSelection(wPos)
+          } else {
+            selection = ZoneSelection(Zone(
+              topLeft = Pos.World(Math.min(wPos.x, pos.x), Math.min(wPos.y, pos.y)),
+              bottomRight = Pos.World(Math.max(wPos.x, pos.x), Math.max(wPos.y, pos.y))
+            ))
+          }
+        case _ =>
+      }
+      mouseDownPos = None
+      updateScreen(0.0)
+
     }
 
     var rcOmega: Option[Double] = None
@@ -242,6 +310,60 @@ object Main {
     autoRefreshHandle = dom.window.setInterval(() => updateMap(), refreshInterval * 1000)
   }
 
+  def drawOverlay(ctx: CanvasRenderingContext2D): Unit = {
+    ctx.strokeStyle = "black"
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(mousePos.x, 0)
+    ctx.lineTo(mousePos.x, ctx.canvas.height)
+    ctx.moveTo(0, mousePos.y)
+    ctx.lineTo(ctx.canvas.width, mousePos.y)
+    ctx.stroke()
+
+    mouseDownPos.foreach { mpos =>
+      ctx.beginPath()
+      ctx.lineWidth = 0.5 * scale
+      ctx.fillStyle = "rgba(242, 242, 12, 0.6)"
+      ctx.strokeStyle = "rgba(145, 145, 7, 0.6)"
+      val spTl = mpos.to[ScreenPos]
+      val spBr = mousePos
+      ctx.rect(spTl.x, spTl.y, Math.abs(spBr.x - spTl.x), Math.abs(spBr.y - spTl.y))
+      ctx.fill()
+      ctx.stroke()
+    }
+
+    selection match {
+      case ZoneSelection(zone) =>
+        ctx.beginPath()
+        ctx.lineWidth = 0.5 * scale
+        ctx.fillStyle = "rgba(242, 242, 12, 0.6)"
+        ctx.strokeStyle = "rgba(145, 145, 7, 0.6)"
+        val spTl = zone.topLeft.to[ScreenPos]
+        val spBr = zone.bottomRight.to[ScreenPos]
+        ctx.rect(spTl.x, spTl.y, Math.abs(spBr.x - spTl.x), Math.abs(spBr.y - spTl.y))
+        ctx.fill()
+        ctx.stroke()
+      case TargetSelection(wPos) =>
+        val sPos = wPos.to[ScreenPos]
+
+        ctx.beginPath()
+        ctx.lineWidth = 0.5 * scale
+        ctx.fillStyle = "rgba(255, 255, 0, 0.3)"
+        val spTl = Pos.World(wPos.x - 750, wPos.y - 750).to[ScreenPos]
+        val spBr = Pos.World(wPos.x + 750, wPos.y + 750).to[ScreenPos]
+        ctx.rect(spTl.x, spTl.y, Math.abs(spBr.x - spTl.x), Math.abs(spBr.y - spTl.y))
+        ctx.fill()
+
+        ctx.beginPath()
+        ctx.fillStyle = "rgba(242, 242, 12, 0.6)"
+        ctx.arc(sPos.x, sPos.y, 3.5 * scale, 0, 2 * PI)
+        ctx.fill()
+
+      case MapSelection.NoSelection =>
+    }
+
+  }
+
   def process(ctx: CanvasRenderingContext2D): Unit = {
     val colors = Array("#e6194b", "#3cb44b", "#ffe119", "#4363d8", "#f58231", "#911eb4", "#46f0f0", "#f032e6", "#bcf60c", "#fabebe", "#008080", "#e6beff", "#9a6324", "#fffac8", "#800000", "#aaffc3", "#808000", "#ffd8b1", "#000075", "#808080", "#ffffff", "#000000")
     val colorMap = roboMap.imageBlock.image.distinct.filter(x => (x & 3) != 1).sorted.zip(colors).toMap
@@ -249,19 +371,26 @@ object Main {
     ctx.lineWidth = 1
     for (x <- 0 until roboMap.imageBlock.width; y <- 0 until roboMap.imageBlock.height) {
       val sPos = Pos.Img(x, y).to[ScreenPos]
-      roboMap.pointAt(x, y) match {
+      val draw = roboMap.pointAt(x, y) match {
         case 0 =>
           ctx.fillStyle = "white"
+          false
         case c if (c & 3) == 0 =>
           ctx.fillStyle = colorMap(c)
+          true
         case c if (c & 3) == 1 =>
           ctx.fillStyle = "black"
+          true
         case c if (c & 3) == 3 =>
           ctx.fillStyle = colorMap(c)
+          true
         case c =>
           println(c)
+          false
       }
-      ctx.fillRect(sPos.x - (scale / 2), sPos.y - (scale / 2), scale, scale)
+      if (draw) {
+        ctx.fillRect(sPos.x - (scale / 2), sPos.y - (scale / 2), scale, scale)
+      }
     }
 
     ctx.beginPath()
@@ -352,6 +481,7 @@ object Main {
     ctx.lineWidth = 1
     ctx.fill()
     ctx.stroke()
+
   }
 
 }
